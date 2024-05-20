@@ -12,7 +12,13 @@ namespace FolderSizeViewer
 
         public int CountDir(string dirName)
         {
-            var children = System.IO.Directory.GetDirectories(dirName);
+            string[] children = new string[0];
+            try
+            {
+                children = System.IO.Directory.GetDirectories(dirName);
+            }
+            catch { }
+
             int childrenCount = 0;
             foreach (var child in children)
             {
@@ -128,7 +134,13 @@ namespace FolderSizeViewer
             else
                 currentFolder.Name = d.Name;
 
-            var children = System.IO.Directory.GetDirectories(dirName);
+            string[] children = new string[0];
+
+            try
+            {
+                children = System.IO.Directory.GetDirectories(dirName);
+            }
+            catch { }
             long childrenSize = 0;
             long childrenCount = 0;
             foreach (var child in children)
@@ -142,7 +154,12 @@ namespace FolderSizeViewer
             currentFolder.Size = childrenSize;
             currentFolder.NumberOfFiles = childrenCount;
 
-            var files = System.IO.Directory.GetFiles(dirName);
+            string[] files = new string[0];
+            try
+            {
+                files = System.IO.Directory.GetFiles(dirName);
+            }catch { }
+
             foreach (var file in files)
             {
                 var f = new System.IO.FileInfo(file);
