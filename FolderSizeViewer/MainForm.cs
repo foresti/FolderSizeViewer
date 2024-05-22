@@ -140,7 +140,12 @@ namespace FolderSizeViewer
             {
                 children = System.IO.Directory.GetDirectories(dirName);
             }
-            catch { }
+            catch
+            {
+                currentFolder.Name += " [INACCESSIBLE]";         
+            
+            }
+
             long childrenSize = 0;
             long childrenCount = 0;
             foreach (var child in children)
@@ -158,7 +163,9 @@ namespace FolderSizeViewer
             try
             {
                 files = System.IO.Directory.GetFiles(dirName);
-            }catch { }
+            }
+            catch
+            { }
 
             foreach (var file in files)
             {
