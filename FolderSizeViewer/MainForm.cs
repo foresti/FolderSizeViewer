@@ -1,5 +1,9 @@
 ﻿using System.Drawing.Design;
+using System.IO;
+using System.Windows.Forms;
 using System.Xml.Linq;
+using Shell32;
+using System.IO;
 
 namespace FolderSizeViewer
 {
@@ -8,6 +12,16 @@ namespace FolderSizeViewer
         public MainForm()
         {
             InitializeComponent();
+        }
+
+        public static string GetOneDriveLinkTarget(string linkPath)
+        {
+            var Shell = new Shell();
+            var FullPath = Path.GetFullPath(linkPath);
+            var Folder = Shell.NameSpace(Path.GetDirectoryName(FullPath));
+            var FolderItem = Folder.Items().Item(Path.GetFileName(FullPath));
+            var Link = (ShellLinkObject)FolderItem.GetLink;
+            return Link.Target.Path;
         }
 
         public int CountDir(string dirName)
@@ -35,6 +49,22 @@ namespace FolderSizeViewer
         {
             string[] entries = e.Data.GetData(DataFormats.FileDrop) as string[];
             string dirName = entries[0];
+
+            var info = new System.IO.FileInfo(dirName);
+            if (info.LinkTarget != null)
+            {
+                dirName = System.IO.File.ResolveLinkTarget(dirName, true).FullName;
+            }
+            else
+            {
+                //Might be a OneDrive link
+                try
+                {
+                    dirName = GetOneDriveLinkTarget(dirName);
+                }
+                catch { }
+            }
+
             if (System.IO.Directory.Exists(dirName))
             {
                 this.FolderTree.Nodes.Clear();
