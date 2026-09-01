@@ -43,6 +43,7 @@
             FolderTree.TabIndex = 0;
             FolderTree.DragDrop += FolderTree_DragDrop;
             FolderTree.DragEnter += FolderTree_DragEnter;
+            FolderTree.KeyDown += onKeyDown;
             // 
             // pBar
             // 
@@ -64,8 +65,9 @@
             Font = new Font("Cascadia Mono", 9F, FontStyle.Regular, GraphicsUnit.Point, 0);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "MainForm";
-            Text = "Folder Size Viewer";
+            Text = "Folder Size Viewer (Disk)";
             TopMost = true;
+            KeyDown += onKeyDown;
             ResumeLayout(false);
         }
 

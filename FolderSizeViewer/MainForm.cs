@@ -4,6 +4,7 @@ using System.Windows.Forms;
 using System.Xml.Linq;
 using Shell32;
 using System.IO;
+using System.Runtime.CompilerServices;
 
 namespace FolderSizeViewer
 {
@@ -73,31 +74,31 @@ namespace FolderSizeViewer
                 System.Threading.Thread t = new Thread(new ThreadStart(
                     () =>
                     {
-                        this.Invoke(() => this.Text = "Folder Size Viewer [counting directories...]");
+                        this.Invoke(() => this.Text = $"Folder Size Viewer ({DS}) [counting directories...]");
                         folderCount = CountDir(dirName);
-                        this.Invoke(() => this.Text = "Folder Size Viewer [getting sizes...]");
+                        this.Invoke(() => this.Text = $"Folder Size Viewer ({DS}) [getting sizes...]");
                         foldersDone = 0;
                         this.pBar.Invoke(() => pBar.Visible = true);
                         var folderData = DoDir(dirName, true);
-                        this.FolderTree.Invoke(() => this.FolderTree.Nodes.Add(CreateLabel(folderData, folderData.Size, 0)));
-                        this.FolderTree.Invoke(() => AddChildrenToNode(this.FolderTree.Nodes[0], folderData, folderData.Size));
+                        this.FolderTree.Invoke(() => this.FolderTree.Nodes.Add(CreateLabel(folderData, folderData.Size, folderData.SizeOnDisk, 0,DiskSizePerc)));
+                        this.FolderTree.Invoke(() => AddChildrenToNode(this.FolderTree.Nodes[0], folderData, folderData.Size, folderData.SizeOnDisk));
                         this.pBar.Invoke(() => pBar.Visible = false);
                         this.FolderTree.Invoke(() => this.FolderTree.Enabled = true);
-                        this.Invoke(() => this.Text = "Folder Size Viewer");
+                        this.Invoke(() => this.Text = $"Folder Size Viewer ({DS})");
                     }
                 ));
                 t.Start();
             }
         }
 
-        private static string CreateLabel(FolderData folderData, long totalSize, int maxNameLength)
+        private static string CreateLabel(FolderData folderData, long totalSize, long totalSizeOnDisk, int maxNameLength, bool DiskSizePerc)
         {
-            double perc = System.Convert.ToDouble(folderData.Size) / System.Convert.ToDouble(totalSize);
+            double perc = DiskSizePerc? System.Convert.ToDouble(folderData.SizeOnDisk) / System.Convert.ToDouble(totalSizeOnDisk)  :  System.Convert.ToDouble(folderData.Size) / System.Convert.ToDouble(totalSize);
             string pBar = ProgressBar(perc * 100, ProgressBarMethod.shade, 20);
-            return $"{folderData.Name.PadRight(maxNameLength)} [{pBar}] ({(folderData.Size / 1000).ToString("#,##0")}kb - {folderData.NumberOfFiles.ToString("#,##0")} file{(folderData.NumberOfFiles == 0 ? "" : "s")})";
+            return $"{folderData.Name.PadRight(maxNameLength)} [{pBar}] ({(folderData.Size / 1000).ToString("#,##0")}kb - (On disk: {(folderData.SizeOnDisk / 1000).ToString("#,##0")}kb) - {folderData.NumberOfFiles.ToString("#,##0")} file{(folderData.NumberOfFiles == 0 ? "" : "s")}";
         }
 
-        void AddChildrenToNode(TreeNode node, FolderData parent, long totalSize)
+        void AddChildrenToNode(TreeNode node, FolderData parent, long totalSize, long totalSizeOnDisk)
         {
             int maxNameLength = 0;
             foreach (var child in parent.Children)
@@ -108,10 +109,10 @@ namespace FolderSizeViewer
 
             foreach (var child in parent.Children)
             {
-                var currentNode = node.Nodes.Add(CreateLabel(child, totalSize, maxNameLength));
+                var currentNode = node.Nodes.Add(CreateLabel(child, totalSize, totalSizeOnDisk, maxNameLength, DiskSizePerc));
                 if (child.Children.Count > 0)
                 {
-                    AddChildrenToNode(currentNode, child, totalSize);
+                    AddChildrenToNode(currentNode, child, totalSize, totalSizeOnDisk);
                 }
             }
         }
@@ -172,21 +173,24 @@ namespace FolderSizeViewer
             }
             catch
             {
-                currentFolder.Name += " [INACCESSIBLE]";         
-            
+                currentFolder.Name += " [INACCESSIBLE]";
+
             }
 
             long childrenSize = 0;
+            long childrenSizeOnDisk = 0;
             long childrenCount = 0;
             foreach (var child in children)
             {
                 var childData = DoDir(child, false);
                 childrenSize += childData.Size;
+                childrenSizeOnDisk += childData.SizeOnDisk;
                 childrenCount += childData.NumberOfFiles;
                 currentFolder.Children.Add(childData);
             }
             currentFolder.Children = currentFolder.Children.OrderBy(x => x.Size).Reverse().ToList();
             currentFolder.Size = childrenSize;
+            currentFolder.SizeOnDisk = childrenSizeOnDisk;
             currentFolder.NumberOfFiles = childrenCount;
 
             string[] files = new string[0];
@@ -200,7 +204,18 @@ namespace FolderSizeViewer
             foreach (var file in files)
             {
                 var f = new System.IO.FileInfo(file);
+                FileAttributes attributes = File.GetAttributes(file);
+                bool isOnlineOnly = attributes.HasFlag((FileAttributes)0x00400000); // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS
+
                 currentFolder.Size += f.Length;
+                if (isOnlineOnly)
+                {
+                    //Online file: no size allocation
+                }
+                else
+                {
+                    currentFolder.SizeOnDisk += f.Length;
+                }
                 currentFolder.NumberOfFiles++;
             }
             pBar.Invoke(() => pBar.Value = System.Convert.ToInt32((System.Convert.ToDouble(foldersDone) / System.Convert.ToDouble(folderCount)) * 100));
@@ -216,11 +231,25 @@ namespace FolderSizeViewer
             else
                 e.Effect = DragDropEffects.None;
         }
+
+        private bool DiskSizePerc = true;
+        private string DS = "Disk";
+
+        private void onKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.D)
+            {
+                DiskSizePerc = !DiskSizePerc;
+                DS = DiskSizePerc ? "Disk" : "Effective";
+                this.Invoke(() => this.Text = $"Folder Size Viewer ({DS}) ");
+            }
+        }
     }
     public class FolderData
     {
         public string Name { get; set; }
         public long Size { get; set; }
+        public long SizeOnDisk { get; set; }
         public long NumberOfFiles { get; set; }
         public List<FolderData> Children { get; set; } = new List<FolderData>();
     }
